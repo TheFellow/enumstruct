@@ -286,11 +286,12 @@ func registerConfigEnumStructs(pass *analysis.Pass, cfg Config, enumTypes map[*t
 
 		pkg, ok := importsByPath[importPath]
 		if !ok {
-			reportConfigTypeNotFound(pass, fullType)
+			// Package is not a direct import of this package — normal, skip silently.
 			continue
 		}
 		sym := pkg.Scope().Lookup(typeName)
 		if sym == nil {
+			// Package is imported but the type name doesn't exist — likely a config typo.
 			reportConfigTypeNotFound(pass, fullType)
 			continue
 		}
