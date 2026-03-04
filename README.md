@@ -1,3 +1,6 @@
+[![CI](https://github.com/TheFellow/enumstruct/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/TheFellow/enumstruct/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/TheFellow/enumstruct)](https://goreportcard.com/report/github.com/TheFellow/enumstruct)
+
 # enumstruct
 
 A `go/analysis` linter that enforces exhaustive nil-check switches on **pointer-union structs** — structs where every field is a pointer type and exactly one is expected to be non-nil at runtime.
