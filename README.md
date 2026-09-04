@@ -88,6 +88,8 @@ exclude_fields:
 
 Types are always specified as `<full_import_path>.<TypeName>`. The linter resolves them via `go/types` — no filesystem path assumptions.
 
+The file is parsed with [goccy/go-yaml](https://github.com/goccy/go-yaml), so it is standard YAML: any consistent indentation, block or flow style, anchors and aliases, and quoted scalars all work. Malformed YAML and type mismatches are reported as errors rather than silently ignored.
+
 ## Directives
 
 | Directive                             | Placement                | Effect                                      |
