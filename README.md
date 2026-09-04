@@ -86,6 +86,16 @@ exclude_fields:
     - LegacyWireTransfer
 ```
 
+> [!IMPORTANT]
+> `exclude_fields` applies **only to types registered through `types:` above**. It has no effect on a struct you annotated with `//enumstruct:decl` — use [`//enumstruct:ignore-field`](#suppression) for those. The two mechanisms are parallel, not interchangeable:
+>
+> | Struct declared by | Exclude a field with |
+> |---|---|
+> | `//enumstruct:decl` annotation | `//enumstruct:ignore-field Name` |
+> | `types:` in `.enumstruct.yml`  | `exclude_fields:` in `.enumstruct.yml` |
+>
+> Listing a field under `exclude_fields` for an annotated type is silently ignored — there is no diagnostic for it.
+
 Types are always specified as `<full_import_path>.<TypeName>`. The linter resolves them via `go/types` — no filesystem path assumptions.
 
 The file is parsed with [goccy/go-yaml](https://github.com/goccy/go-yaml), so it is standard YAML: any consistent indentation, block or flow style, anchors and aliases, and quoted scalars all work. Malformed YAML and type mismatches are reported as errors rather than silently ignored.
@@ -96,7 +106,7 @@ The file is parsed with [goccy/go-yaml](https://github.com/goccy/go-yaml), so it
 |---------------------------------------|--------------------------|---------------------------------------------|
 | `//enumstruct:decl`                   | Above a struct type      | Marks the struct as a pointer-union         |
 | `//enumstruct:ignore`                 | Above a switch statement | Suppresses exhaustiveness for that switch   |
-| `//enumstruct:ignore-field FieldName` | Above a struct type      | Excludes a field from exhaustiveness checks |
+| `//enumstruct:ignore-field FieldName` | Above an **annotated** struct type | Excludes a field from exhaustiveness checks |
 
 Directives are parsed with [`go/ast.ParseDirective`](https://pkg.go.dev/go/ast#ParseDirective), so they follow the standard [directive syntax](https://go.dev/doc/comment#directives): no space between `//` and `enumstruct`. `// enumstruct:decl` is an ordinary comment, not a directive.
 
@@ -169,6 +179,8 @@ type Union struct {
 }
 ```
 
+`//enumstruct:ignore-field` is the exclusion mechanism for **annotated** structs, and it travels across packages: the excluded set is exported as an `analysis.Fact`, so consumers of the type honor it without needing any configuration of their own. For structs registered through `types:` in `.enumstruct.yml` — which you cannot annotate, because you do not own the source — use [`exclude_fields`](#config-file-for-generated-or-imported-code) instead.
+
 ## Modes
 
 **Strict (default):** A `default:` clause does not satisfy exhaustiveness — every field must have an explicit `case`. This is the correct choice when `default: panic("unreachable")` indicates the author intended full coverage.
@@ -206,6 +218,16 @@ Matching is done via `*types.Var` identity from `pass.TypesInfo.Selections`, nev
 - Config types must be direct imports of the package being analyzed (transitive imports are not resolved)
 - `//enumstruct:decl` on a spec inside a grouped `type (...)` block requires the annotation to be directly above the type name, not above `type (`
 - `//enumstruct:decl` on an alias declaration (`//enumstruct:decl type A = Union`) does not register the aliased type; annotate the underlying struct declaration instead. Aliases are transparent at *use* sites, so switches over alias-typed values are checked normally.
+- Listing an **already-annotated** type under `types:` in `.enumstruct.yml` overrides its annotation in packages that import it, dropping any `//enumstruct:ignore-field` exclusions there. The defining package still honors the annotation, so the same type can report differently depending on which package is analyzed:
+
+  ```go
+  // lib/lib.go
+  //enumstruct:decl
+  //enumstruct:ignore-field C
+  type Union struct { A *int; B *string; C *bool }
+  ```
+
+  With `types: ["mod/lib.Union"]` in `.enumstruct.yml`, a `switch` covering only `A` and `B` is clean inside `lib`, but reports `missing cases: C` in any package importing `lib`. Prefer one mechanism per type: annotate it, *or* register it via config — not both.
 
 ## License
 
