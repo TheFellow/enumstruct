@@ -41,8 +41,7 @@ func applyDefaults(cfg *Config) {
 		cfg.DefaultMode = "strict"
 	}
 	if cfg.CheckGenerated == nil {
-		t := true
-		cfg.CheckGenerated = &t
+		cfg.CheckGenerated = new(true)
 	}
 }
 

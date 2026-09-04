@@ -24,6 +24,7 @@ func TestAnalyzer(t *testing.T) {
 		{name: "reversed-nil", pkg: "reversed_nil"},
 		{name: "parenthesized", pkg: "parenthesized"},
 		{name: "non-pointer-field", pkg: "non_pointer_field"},
+		{name: "alias", pkg: "alias"},
 	}
 
 	for _, tc := range cases {
