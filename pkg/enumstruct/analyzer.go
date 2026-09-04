@@ -22,6 +22,21 @@
 //   - //enumstruct:decl                 — marks struct as a pointer-union
 //   - //enumstruct:ignore               — suppresses exhaustiveness for one switch
 //   - //enumstruct:ignore-field <Name>  — excludes a field from exhaustiveness
+//
+// # Excluding fields
+//
+// The two ways of declaring an enum struct each have their own exclusion
+// mechanism, and they are not interchangeable:
+//
+//   - Annotated with //enumstruct:decl — exclude via //enumstruct:ignore-field.
+//     The excluded set is exported as an analysis.Fact, so it applies in every
+//     package that consumes the type.
+//   - Registered via types: in .enumstruct.yml — exclude via exclude_fields:
+//     in the same file.
+//
+// Naming an annotated type under exclude_fields has no effect, and naming a
+// config-registered type in //enumstruct:ignore-field is not possible since
+// such types are by definition not owned by the analyzed module.
 package enumstruct
 
 import (
