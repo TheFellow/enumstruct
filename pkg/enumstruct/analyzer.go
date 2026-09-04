@@ -62,7 +62,7 @@ type cachedConfig struct {
 	err error
 }
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(pass *analysis.Pass) (any, error) {
 	ins := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 
 	cfg, err := loadConfigCached(projectDir(pass))
@@ -416,6 +416,17 @@ func projectDir(pass *analysis.Pass) string {
 	return filepath.Dir(file.Name())
 }
 
+// enumstructDirective reports whether c is an enumstruct directive comment
+// and, if so, returns it. Per the directive syntax, there is no space between
+// the "//" and the tool name; see https://go.dev/doc/comment#directives.
+func enumstructDirective(c *ast.Comment) (ast.Directive, bool) {
+	d, ok := ast.ParseDirective(c.Slash, c.Text)
+	if !ok || d.Tool != "enumstruct" {
+		return ast.Directive{}, false
+	}
+	return d, true
+}
+
 func collectIgnoreNextSwitchLines(pass *analysis.Pass) map[string]map[int]bool {
 	lines := map[string]map[int]bool{}
 	for _, file := range pass.Files {
@@ -426,7 +437,8 @@ func collectIgnoreNextSwitchLines(pass *analysis.Pass) map[string]map[int]bool {
 		filename := fpos.Name()
 		for _, cg := range file.Comments {
 			for _, c := range cg.List {
-				if strings.TrimSpace(c.Text) != "//enumstruct:ignore" {
+				d, ok := enumstructDirective(c)
+				if !ok || d.Name != "ignore" || d.Args != "" {
 					continue
 				}
 				line := pass.Fset.PositionFor(c.Slash, false).Line
@@ -462,7 +474,7 @@ func hasDeclDirective(pass *analysis.Pass, typeSpec *ast.TypeSpec, genDecl *ast.
 			return false
 		}
 		for _, c := range cg.List {
-			if strings.TrimSpace(c.Text) == "//enumstruct:decl" {
+			if d, ok := enumstructDirective(c); ok && d.Name == "decl" && d.Args == "" {
 				return true
 			}
 		}
@@ -481,13 +493,12 @@ func collectIgnoreFieldNames(typeSpec *ast.TypeSpec, genDecl *ast.GenDecl) []str
 			return
 		}
 		for _, c := range cg.List {
-			txt := strings.TrimSpace(strings.TrimPrefix(c.Text, "//"))
-			if !strings.HasPrefix(txt, "enumstruct:ignore-field ") {
+			d, ok := enumstructDirective(c)
+			if !ok || d.Name != "ignore-field" {
 				continue
 			}
-			name := strings.TrimSpace(strings.TrimPrefix(txt, "enumstruct:ignore-field "))
-			if name != "" {
-				out[name] = true
+			if d.Args != "" {
+				out[d.Args] = true
 			}
 		}
 	}
@@ -602,12 +613,16 @@ func unwrapParens(e ast.Expr) ast.Expr {
 	}
 }
 
+// derefNamed returns the named type denoted by t, following type aliases and
+// at most one pointer indirection. Aliases are transparent: a switch over a
+// value whose type is spelled with an alias must be checked the same way as
+// one spelled with the underlying named type.
 func derefNamed(t types.Type) *types.Named {
-	switch v := t.(type) {
+	switch v := types.Unalias(t).(type) {
 	case *types.Named:
 		return v
 	case *types.Pointer:
-		if named, ok := v.Elem().(*types.Named); ok {
+		if named, ok := types.Unalias(v.Elem()).(*types.Named); ok {
 			return named
 		}
 	}
@@ -615,6 +630,6 @@ func derefNamed(t types.Type) *types.Named {
 }
 
 func isPointer(t types.Type) bool {
-	_, ok := t.(*types.Pointer)
+	_, ok := types.Unalias(t).(*types.Pointer)
 	return ok
 }

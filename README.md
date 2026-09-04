@@ -40,6 +40,8 @@ Similar scenarios can occur when trying to serialize a Go sum type to/from JSON.
 
 ## Installation
 
+Requires Go 1.26 or later.
+
 ```bash
 go install github.com/TheFellow/enumstruct/cmd/enumstruct@latest
 ```
@@ -93,6 +95,8 @@ Types are always specified as `<full_import_path>.<TypeName>`. The linter resolv
 | `//enumstruct:decl`                   | Above a struct type      | Marks the struct as a pointer-union         |
 | `//enumstruct:ignore`                 | Above a switch statement | Suppresses exhaustiveness for that switch   |
 | `//enumstruct:ignore-field FieldName` | Above a struct type      | Excludes a field from exhaustiveness checks |
+
+Directives are parsed with [`go/ast.ParseDirective`](https://pkg.go.dev/go/ast#ParseDirective), so they follow the standard [directive syntax](https://go.dev/doc/comment#directives): no space between `//` and `enumstruct`. `// enumstruct:decl` is an ordinary comment, not a directive.
 
 ## What gets checked
 
@@ -190,6 +194,7 @@ The case-expression recognizer handles all real-world nil-check forms:
 | `(u.Field != nil)`                                    | Yes (parenthesized) |
 | Pointer receiver: `(*Union).Field != nil`             | Yes                 |
 | Multi-expression case: `case u.A != nil, u.B != nil:` | Yes                 |
+| Alias-typed value: `type A = Union; func f(u A)`      | Yes (transparent)   |
 
 Matching is done via `*types.Var` identity from `pass.TypesInfo.Selections`, never by field name strings. This prevents false matches from promoted or embedded fields and ensures correctness across packages.
 
@@ -198,6 +203,7 @@ Matching is done via `*types.Var` identity from `pass.TypesInfo.Selections`, nev
 - `if/else if` chains are not checked (v1 scope: `switch {}` only)
 - Config types must be direct imports of the package being analyzed (transitive imports are not resolved)
 - `//enumstruct:decl` on a spec inside a grouped `type (...)` block requires the annotation to be directly above the type name, not above `type (`
+- `//enumstruct:decl` on an alias declaration (`//enumstruct:decl type A = Union`) does not register the aliased type; annotate the underlying struct declaration instead. Aliases are transparent at *use* sites, so switches over alias-typed values are checked normally.
 
 ## License
 
